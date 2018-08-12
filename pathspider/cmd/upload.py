@@ -6,6 +6,7 @@ import json
 import bz2
 import dateutil.parser
 import os
+import random
 
 from io import BytesIO
 
@@ -18,6 +19,7 @@ def register_args(subparsers):
     parser.add_argument("--token", help="Authentification token")
     parser.add_argument("--metadata", nargs='+', help="Additional metadata entry", metavar="ENTRY:VALUE")
     parser.add_argument("--geo", action='store_true', help="Adds geolocation to metafile")
+    parser.add_argument('--autoname', action='store_true', help=("Gives output file a generated name."))
     parser.add_argument("--url", default='https://v3.pto.mami-project.eu/raw/', help="URL for PTO data upload")
 
     # Set the command entry point
@@ -284,6 +286,11 @@ def uploader(url, campaign, token, filename, fn_metadata):
         upload_data(data_link, compress_file(filename), fn_metadata)
 
 def start_uploader(args):
+    # Create custum datafile name if reqired
+    if args.autoname:
+        new_file = os.path.join(os.path.dirname(args.filename), ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=15))+'.ndjson')
+        os.rename(args.filename, new_file)
+        args.filename = new_file
     fn_metadata = create_metadata(args.filename, args.metadata, args.geo)
     uploader(args.url, args.campaign, args.token, args.filename, fn_metadata)
 

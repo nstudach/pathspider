@@ -5,6 +5,7 @@ import json
 import sys
 import threading
 import csv
+import random
 
 from straight.plugin import load
 
@@ -93,6 +94,10 @@ def run_measurement(args):
             job_feeder = job_feeder_ndjson
 
         threading.Thread(target=job_feeder, args=(args.input, spider)).start()
+    
+        # Create custum output name if reqired
+        if args.autoname:
+            rgs.output =''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=15))+'.ndjson'
 
         with open(args.output, 'w') as outputfile:
             logger.info("opening output file "+args.output)
@@ -142,6 +147,7 @@ def register_args(subparsers):
     parser.add_argument('--output', default='/dev/stdout', metavar='OUTPUTFILE',
                         help=("The file to output results data to. "
                               "Defaults to standard output."))
+    parser.add_argument('--autoname', action='store_true', help=("Gives output file a generated name. Overwrites --output"))
     parser.add_argument('--output-flows', action='store_true',
                         help="Include flow results in output.")
     parser.add_argument('--upload', nargs = 2, metavar=('CAMPAIGN', 'API-TOKEN'),
