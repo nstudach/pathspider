@@ -103,7 +103,7 @@ def upload_metadata(filename):
     '''
     
     logger = logging.getLogger("uploader")
-    link = BASELINK + os.path.basename(filename)
+    link = BASELINK + os.path.basename(filename).split(".")[0] + ".ndjson.bz2"
     content_type = ["Content-type: application/json", "Authorization: APIKEY " + TOKEN]
     answer = upload_file (link, content_type, filename)
     logger.debug("uploaded metadata")
