@@ -7,6 +7,7 @@ import bz2
 import dateutil.parser
 import os
 import random
+import sys
 
 from io import BytesIO
 
@@ -48,7 +49,7 @@ def is_duplicate(filename):
     '''
     True if file is in campaign else False
     
-    :param filename: filename of file to compress
+    :param filename: filename of file to check
     :type filename: str
     :return: bool -- True if file is duplicate else False
     '''
@@ -275,7 +276,7 @@ def uploader(url, campaign, token, filename, fn_metadata):
     TOKEN = token
 
     # check if metadata already exist on server
-    if not is_duplicate(fn_metadata):
+    if not is_duplicate(filename+'.bz2'):
 
         #upload and read out data link for data upload
         logger.debug("Start processing metadata")
@@ -284,6 +285,8 @@ def uploader(url, campaign, token, filename, fn_metadata):
         # compress data if necessary and upload data
         logger.debug("Start processing data")
         upload_data(data_link, compress_file(filename), fn_metadata)
+    else:
+        sys.exit(1)
 
 def start_uploader(args):
     # Create custum datafile name if reqired
