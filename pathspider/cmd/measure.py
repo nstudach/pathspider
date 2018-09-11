@@ -94,13 +94,14 @@ def run_measurement(args):
             job_feeder = job_feeder_ndjson
 
         threading.Thread(target=job_feeder, args=(args.input, spider)).start()
-    
+
         # Create custum output name if reqired
         if args.autoname:
-            rgs.output =''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=15))+'.ndjson'
+            #choices only for python 3.6
+            args.output = ''.join(random.sample('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=15))+'.ndjson'
 
         with open(args.output, 'w') as outputfile:
-            logger.info("opening output file "+args.output)
+            logger.info("opening output file "+ args.output)
             while True:
                 result = spider.outqueue.get()
                 if result == SHUTDOWN_SENTINEL:
@@ -147,15 +148,17 @@ def register_args(subparsers):
     parser.add_argument('--output', default='/dev/stdout', metavar='OUTPUTFILE',
                         help=("The file to output results data to. "
                               "Defaults to standard output."))
-    parser.add_argument('--autoname', action='store_true', help=("Gives output file a generated name. Overwrites --output"))
+    parser.add_argument('--autoname', action='store_true',
+                        help=("Gives output file a generated name. Overwrites --output"))
     parser.add_argument('--output-flows', action='store_true',
                         help="Include flow results in output.")
-    parser.add_argument('--upload', nargs = 2, metavar=('CAMPAIGN', 'API-TOKEN'),
-                        help="Uploads generated data to PTO CAMPAIGN. requires --output to be set other than default")
-    parser.add_argument('--metadata', nargs = '+', metavar=('PARAMETER:VALUE'),
+    parser.add_argument('--upload', nargs=2, metavar=('CAMPAIGN', 'API-TOKEN'),
+                        help="Uploads generated data to PTO CAMPAIGN. requires --output to be set")
+    parser.add_argument('--metadata', nargs='+', metavar=('PARAMETER:VALUE'),
                         help="Adds custom metadata entries")
     parser.add_argument("--geo", action='store_true', help="Adds geolocation to metafile")
-    parser.add_argument("--url", default='https://v3.pto.mami-project.eu/raw/', help="URL for PTO data upload. Default is PTO of mami-project")
+    parser.add_argument("--url", default='https://v3.pto.mami-project.eu/raw/',
+                        help="URL for PTO data upload. Default is PTO of mami-project")
 
     # Set the command entry point
     parser.set_defaults(cmd=run_measurement)
