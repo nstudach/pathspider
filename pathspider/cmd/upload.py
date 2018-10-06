@@ -10,6 +10,7 @@ import random
 import sys
 
 from io import BytesIO
+import metadata
 
 def register_args(subparsers):
     parser = subparsers.add_parser(name='upload',
@@ -19,7 +20,6 @@ def register_args(subparsers):
     parser.add_argument("--campaign", help="Campaign the data belongs to")
     parser.add_argument("--token", help="Authentification token")
     parser.add_argument("--metadata", nargs='+', help="Additional metadata entry", metavar="ENTRY:VALUE")
-    parser.add_argument("--geo", action='store_true', help="Adds geolocation to metafile")
     parser.add_argument('--autoname', action='store_true', help=("Gives output file a generated name."))
     parser.add_argument("--url", default='https://v3.pto.mami-project.eu/raw/', help="URL for PTO data upload")
 
@@ -115,7 +115,7 @@ def upload_metadata(filename):
         logger.debug("unexpected answer. excepted .json instead: " + answer)
         return "Error"
 
-def upload_data(url, filename, fn_metadata):
+def upload_data(url, filename, metafilename):
     '''
     Uploads datafile to campaign on PTO server
     
@@ -123,6 +123,8 @@ def upload_data(url, filename, fn_metadata):
     :type url: str
     :param filename: filename of file to compress
     :type filename: str
+    :param metafilename: filename of metafile
+    :type metafilename: str    
     '''
 
     logger = logging.getLogger("uploader")
@@ -132,8 +134,8 @@ def upload_data(url, filename, fn_metadata):
     try:
         data = json.loads(answer)
         logger.info("upload complete")
-        save_json(fn_metadata, data)
-        logger.info("saved metadata: " + fn_metadata)
+        metadata.write_metadata(metafilename, data)
+        logger.info("saved metadata: " + metafilename)
     except:
         logger.info("upload failed")
         logger.debug("unexpected answer. excepted .json instead: " + answer)
@@ -170,85 +172,7 @@ def upload_file(url, headers, filename):
     file.close()
     return buffer.getvalue().decode('iso-8859-1')
 
-def save_json(name, data):
-    with open(name, mode="w") as mfp:
-        json.dump(data, mfp, indent=2)
-    
-def metadata_from_ps_ndjson(fp):
-    '''
-    reads data file and extracts meta data
-    '''
-    
-    y = None
-    z = None
-
-    for line in fp:
-        d = json.loads(line)
-
-        a = dateutil.parser.parse(d['time']['from'])
-        b = dateutil.parser.parse(d['time']['to'])
-
-        if y is None or a < y:
-            y = a
-        
-        if z is None or b > z:
-            z = b    
-
-    return {'_time_start': y.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            '_time_end': z.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "_file_type": "pathspider-v2-ndjson-bz2"}
-
-def write_metadata_for(filename):
-    '''
-    Creates metafile name and checks if data file is compressed or not
-    '''
-
-    metafilename = filename.split(".")[0] + ".meta.json"
-    
-    if filename.endswith(".bz2"):
-        open_fn = bz2.open
-    else:
-        open_fn = open
-
-    with open_fn(filename) as fp:
-        metadata = metadata_from_ps_ndjson(fp)
-    
-    return metafilename, metadata
-
-def create_metadata(filename, entry, geo):
-    '''
-    Create and update metadata from a given data file
-    
-    :param filename: filename of data file
-    :type filename: str
-    :param entry: Additional meta data tags
-    :type entry: list of str
-    :param geo: option to add geolocation data
-    :type geo: bool
-    :return: str -- filename of metadata
-    '''
-
-    logger = logging.getLogger("uploader")
-    #read out meta data
-    logger.debug("extracting metadata from " + filename)
-    fn_metadata, metadata = write_metadata_for(filename)
-
-    # add custom entries to metadata
-    if entry is not None:
-        for element in entry:
-            keyword, value = element.split(":")
-            metadata[keyword] = value
-
-    # add geolocation
-    if geo:
-        geolocation = check_url('https://ipinfo.io/' ,[])
-        metadata = {**metadata, **json.loads(geolocation)}
-
-    save_json(fn_metadata, metadata)
-    logger.info("generated metadata: " + fn_metadata)
-    return fn_metadata
-
-def uploader(url, campaign, token, filename, fn_metadata):
+def uploader(url, campaign, token, filename, metafilename):
     '''
     Uploads a given file to a campaign on the PTO using the provided token.
     Also creates and uploads the neccessary meta data.
@@ -280,11 +204,11 @@ def uploader(url, campaign, token, filename, fn_metadata):
 
         #upload and read out data link for data upload
         logger.debug("Start processing metadata")
-        data_link = upload_metadata(fn_metadata)
+        data_link = upload_metadata(metafilename)
 
         # compress data if necessary and upload data
         logger.debug("Start processing data")
-        upload_data(data_link, compress_file(filename), fn_metadata)
+        upload_data(data_link, compress_file(filename), metafilename)
     else:
         sys.exit(1)
 
@@ -294,8 +218,10 @@ def start_uploader(args):
         new_file = os.path.join(os.path.dirname(args.filename), ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=15))+'.ndjson')
         os.rename(args.filename, new_file)
         args.filename = new_file
-    fn_metadata = create_metadata(args.filename, args.metadata, args.geo)
-    uploader(args.url, args.campaign, args.token, args.filename, fn_metadata)
+    #create metadata
+    metadata.create_metadata(args.filename, 'ps-ndjson', args.metadata)
+    metafilename = args.filename +  ".meta.json"
+    uploader(args.url, args.campaign, args.token, args.filename, metafilename)
 
 
 
