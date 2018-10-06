@@ -12,18 +12,12 @@ class ForgeSpider(DesynchronizedSpider):
     chains = [BasicChain]
     packets = 0
 
-    def __init__(self, worker_count, libtrace_uri, args):
-        super().__init__(worker_count, libtrace_uri, args)
+    def __init__(self, worker_count, libtrace_uri, args, server_mode=False):
+        super().__init__(worker_count, libtrace_uri, args, server_mode)
 
         self.__logger = logging.getLogger('forge')
         self._config_count = self.packets
         self.connections = [self.connect] * self.packets # pylint: disable=no-member
-
-    def pre_connect(self, job):
-        self.setup(job)
-
-    def setup(self, job):
-        pass
 
     def connect(self, job, seq):
         pkt = self.forge(job, seq)

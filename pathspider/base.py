@@ -51,6 +51,7 @@ class Spider:
 
     """
 
+    name = "spider"
     chains = [] # Disable the observer by default
 
     def __init__(self, worker_count, libtrace_uri, args, server_mode):
@@ -62,6 +63,8 @@ class Spider:
         :param libtrace_uri: The URI to pass to the Observer to describe the
                              interface on which packets should be captured.
         :type libtrace_uri: str
+        :param server_mode: Whether the spider should operate in server mode
+        :type server_mode: bool
 
         It is expected that this function will be overloaded by plugins, though
         the plugin should always make a call to the __init__() function of the
@@ -71,52 +74,42 @@ class Spider:
 
          super().__init__(worker_count=worker_count,
                           libtrace_uri=libtrace_uri,
-                          args=args)
+                          args=args,
+                          server_mode=server_mode)
 
         This can be used to initialise any variables which may be required in
         the object.
         """
 
+        self.worker_count = worker_count
         self.args = args
-
-        self.running = False
-        self.stopping = False
-        self.terminating = False
+        self.libtrace_uri = libtrace_uri
         self.server_mode = server_mode
 
-        self.worker_count = worker_count
-        self.active_worker_count = 0
-        self.active_worker_lock = threading.Lock()
+        self.__initialize_queues()
+        self.__set_interface_addresses()
 
-        self.libtrace_uri = libtrace_uri
+        self.lock = threading.Lock()
+        self.exception = None
 
+        self.__logger = logging.getLogger('pathspider')
+
+    def __initialize_queues(self):
+        # TODO: These could be initialized closer to where they are used?
         self.jobqueue = queue.Queue(QUEUE_SIZE)
         self.resqueue = queue.Queue(QUEUE_SIZE)
         self.flowqueue = mp.Queue(QUEUE_SIZE)
         self.observer_shutdown_queue = mp.Queue(QUEUE_SIZE)
-
         self.jobtab = {}
         self.comparetab = {}
         self.restab = {}
         self.flowtab = {}
         self.flowreap = collections.deque()
         self.flowreap_size = min(self.worker_count * 100, 10000)
-
         self.outqueue = queue.Queue(QUEUE_SIZE)
 
-        self.observer = None
-
-        self.worker_threads = []
-        self.configurator_thread = None
-        self.merger_thread = None
-
-        self.observer_process = None
-
-        self.lock = threading.Lock()
-        self.exception = None
-
-        if libtrace_uri.startswith('int'):
-            # TODO: Refactor this
+    def __set_interface_addresses(self):
+        if self.libtrace_uri.startswith('int'):
             self.source = (ipv4_address(self.libtrace_uri[4:]),
                            ipv6_address(self.libtrace_uri[4:]))
             self.source_public = (ipv4_address_public(self.libtrace_uri[4:]),
@@ -126,38 +119,19 @@ class Spider:
         else:
             self.source = ("127.0.0.1", "::1")
 
-        self.__logger = logging.getLogger('pathspider')
-
-        if hasattr(self.args, 'connect') and self.args.connect.startswith('tor'):
-            logging.getLogger("stem").setLevel(logging.ERROR)
-            import stem.control
-            self.controller = stem.control.Controller.from_port()
-            self.controller.authenticate()
-
+    def _get_test_count(self):
+        if hasattr(self, 'packets'):
+            return self.packets # pylint: disable=no-member
+        if hasattr(self, 'configurations'):
+            return len(self.configurations) # pylint: disable=no-member
+        if hasattr(self, 'connections'):
+            return len(self.connections) # pylint: disable=no-member
 
     def configurator(self):
         raise NotImplementedError("Cannot instantiate an abstract Spider")
 
     def worker(self, worker_number):
         raise NotImplementedError("Cannot instantiate an abstract Spider")
-
-    def pre_connect(self, job):
-        """
-        Performs pre-connection operations.
-
-        :param job: The job record
-        :type job: dict
-
-        The pre_connect function can be used to perform any operations that
-        must be performed before each connection. It will be run only once
-        per job, with the same result passed to both the A and B connect
-        calls. This function is not synchronized with the configurator.
-
-        Plugins to PATHspider can optionally implement this function. If this
-        function is not overloaded, it will be a noop.
-        """
-
-        pass
 
     def _connect_wrapper(self, job, config, connect=None):
         start = str(datetime.utcnow())
@@ -169,33 +143,6 @@ class Spider:
             conn = connect(job, config)
         conn['spdr_start'] = start
         return conn
-
-    def post_connect(self, job, rec, config):
-        """
-        Performs post-connection operations.
-
-        :param job: The job record.
-        :type job: dict
-        :param rec: The result of the connection operation(s).
-        :type rec: dict
-        :param config: The state of the configurator during
-                       :func:`pathspider.base.Spider.connect`.
-        :type config: int
-
-        The post_connect function can be used to perform any operations that
-        must be performed after each connection. It will be run for both the
-        A and the B configuration, and is not synchronized with the
-        configurator.
-
-        Plugins to PATHspider can optionally implement this function. If this
-        function is not overloaded, it will be a noop.
-
-        Any sockets or other file handles that were opened during
-        :func:`pathspider.base.Spider.connect` should be closed in this
-        function if they have not been already.
-        """
-
-        pass
 
     def create_observer(self):
         """
@@ -406,14 +353,12 @@ class Spider:
             self.__logger.exception("exception occurred. terminating.")
             if self.exception is None:
                 self.exception = sys.exc_info()[1]
-
             self.terminate()
 
     def _finalise_conns(self, job, jobId, conns):
         # Pass results on for merge
         config = 0
         for conn in conns:
-            self.post_connect(job, conn, config)
             conn['spdr_stop'] = str(datetime.utcnow())
             conn['config'] = config
             if self.server_mode:
@@ -440,9 +385,15 @@ class Spider:
 
         self.__logger.info("starting pathspider")
 
+        self.worker_threads = []
+        self.active_worker_count = 0
+        self.active_worker_lock = threading.Lock()
+
         with self.lock:
             # set the running flag
             self.running = True
+            
+            self.stopping = False
 
             # create an observer and start its process
             self.observer = self.create_observer()
@@ -596,7 +547,10 @@ class Spider:
 
     def add_job(self, job):
         """
-        Adds a job to the job queue.
+        Adds a job to the job queue. Before inserting into the queue, the local
+        IP addresses will be added to the job information. The path specifier
+        will also be constructed using this information and any additional
+        information that is available in the job record.
 
         If PATHspider is currently stopping, the job will not be added to the
         queue.
