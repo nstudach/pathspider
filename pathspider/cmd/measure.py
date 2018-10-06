@@ -95,11 +95,6 @@ def run_measurement(args):
 
         threading.Thread(target=job_feeder, args=(args.input, spider)).start()
 
-        # Create custum output name if reqired
-        if args.autoname:
-            #choices only for python 3.6
-            args.output = ''.join(random.sample('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=15))+'.ndjson'
-
         with open(args.output, 'w') as outputfile:
             logger.info("opening output file "+ args.output)
             while True:
@@ -115,9 +110,13 @@ def run_measurement(args):
                 spider.outqueue.task_done()
         if args.upload is not None:
             if not args.output == '/dev/stdout':
-                fn_filename = upload.create_metadata(args.output, args.metadata, args.geo)
+                # add agrs for uploader
+                args.campaign = args.upload[0]
+                args.token = args.upload[1]
+                args.filename = args.output
+                args.metafilename = None
                 logger.info("try uploading data...")
-                upload.uploader(args.url, args.upload[0], args.upload[1], args.output, fn_filename)
+                upload.start_uploader(args)
             else:
                 logger.info("upload failed, --output must be set")
 
@@ -154,9 +153,8 @@ def register_args(subparsers):
                         help="Include flow results in output.")
     parser.add_argument('--upload', nargs=2, metavar=('CAMPAIGN', 'API-TOKEN'),
                         help="Uploads generated data to PTO CAMPAIGN. requires --output to be set")
-    parser.add_argument('--metadata', nargs='+', metavar=('PARAMETER:VALUE'),
+    parser.add_argument('--add', nargs='+', metavar=('TAG:VAL'),
                         help="Adds custom metadata entries")
-    parser.add_argument("--geo", action='store_true', help="Adds geolocation to metafile")
     parser.add_argument("--url", default='https://v3.pto.mami-project.eu/raw/',
                         help="URL for PTO data upload. Default is PTO of mami-project")
 

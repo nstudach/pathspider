@@ -7,8 +7,6 @@ import sys
 
 from straight.plugin import load
 
-FILETYPE_MAP = { 'ps-ndjson': metadata_from_ps_ndjson }
-
 def metadata_from_ps_ndjson(fp):
     y = None
     z = None
@@ -28,6 +26,8 @@ def metadata_from_ps_ndjson(fp):
     return {'_time_start': y.strftime("%Y-%m-%dT%H:%M:%SZ"),
             '_time_end': z.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "_file_type": "pathspider-v2-ndjson-bz2"}
+
+FILETYPE_MAP = { 'ps-ndjson': metadata_from_ps_ndjson }
 
 def extract_metadata_for(filename, metadata_fn):
     metafilename = filename + ".meta.json"

@@ -1,30 +1,15 @@
-
 import pycurl
 import argparse
 import logging
 import json
 import bz2
-import dateutil.parser
 import os
 import random
 import sys
+import string
 
 from io import BytesIO
-import metadata
-
-def register_args(subparsers):
-    parser = subparsers.add_parser(name='upload',
-                                   help="Uploads data to PTO")
-
-    parser.add_argument("filename", help="Data file in .ndjson")
-    parser.add_argument("--campaign", help="Campaign the data belongs to")
-    parser.add_argument("--token", help="Authentification token")
-    parser.add_argument("--metadata", nargs='+', help="Additional metadata entry", metavar="ENTRY:VALUE")
-    parser.add_argument('--autoname', action='store_true', help=("Gives output file a generated name."))
-    parser.add_argument("--url", default='https://v3.pto.mami-project.eu/raw/', help="URL for PTO data upload")
-
-    # Set the command entry point
-    parser.set_defaults(cmd=start_uploader)
+import pathspider.cmd.metadata as metadata 
 
 def compress_file(filename):
     '''
@@ -215,13 +200,30 @@ def uploader(url, campaign, token, filename, metafilename):
 def start_uploader(args):
     # Create custum datafile name if reqired
     if args.autoname:
-        new_file = os.path.join(os.path.dirname(args.filename), ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=15))+'.ndjson')
+        new_file = os.path.join(os.path.dirname(args.filename), ''.join(random.sample(string.ascii_letters + string.digits, k=15))+'.ndjson')
         os.rename(args.filename, new_file)
         args.filename = new_file
     #create metadata
-    metadata.create_metadata(args.filename, 'ps-ndjson', args.metadata)
-    metafilename = args.filename +  ".meta.json"
+    if args.metafilename is None:
+        metadata.create_metadata(args.filename, 'ps-ndjson', args.add)
+        metafilename = args.filename +  ".meta.json"
+    else:
+        metafilename = args.metafilename
     uploader(args.url, args.campaign, args.token, args.filename, metafilename)
 
+def register_args(subparsers):
+    parser = subparsers.add_parser(name='upload',
+                                   help="Uploads data to PTO\nCreates metadata if not provided")
+
+    parser.add_argument("filename", help="Data file in .ndjson", metavar="FILENAME")
+    parser.add_argument("--campaign", help="Campaign the data belongs to")
+    parser.add_argument("--token", help="Authentification token")
+    parser.add_argument("--metadata", help="Metadata filename", metavar="FILENAME")
+    parser.add_argument("--add", nargs='+', help="Additional metadata entry", metavar="TAG:VAL")
+    parser.add_argument('--autoname', action='store_true', help=("Gives output file a generated name."))
+    parser.add_argument("--url", default='https://v3.pto.mami-project.eu/raw/', help="URL for PTO data upload")
+
+    # Set the command entry point
+    parser.set_defaults(cmd=start_uploader)
 
 
