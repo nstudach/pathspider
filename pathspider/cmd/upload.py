@@ -204,11 +204,11 @@ def start_uploader(args):
         os.rename(args.filename, new_file)
         args.filename = new_file
     #create metadata
-    if args.metafilename is None:
+    if args.metadata is None:
         metadata.create_metadata(args.filename, 'ps-ndjson', args.add)
         metafilename = args.filename +  ".meta.json"
     else:
-        metafilename = args.metafilename
+        metafilename = args.metadata
     uploader(args.url, args.campaign, args.token, args.filename, metafilename)
 
 def register_args(subparsers):
