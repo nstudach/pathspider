@@ -63,7 +63,7 @@ def metadata(args):
     for filename in args.files:
         logger.info('processing %s...' % (filename,))
         sys.stdout.flush()
-        create_metadata(filename, args.filetype, args.metadata)
+        create_metadata(filename, args.filetype, args.add)
 
 def register_args(subparsers):
     parser = subparsers.add_parser(name='metadata',
@@ -71,7 +71,7 @@ def register_args(subparsers):
     parser.add_argument("files", nargs="*", help="input files", metavar="INPUTFILE")
     parser.add_argument("-t", "--filetype", help="filetype [ps-ndjson]",
                         metavar="FILETYPE", default="ps-ndjson")
-    parser.add_argument("--metadata", nargs='+', help="Additional metadata entry",
-                        metavar="ENTRY:VALUE")
+    parser.add_argument("--add", nargs='+', help="Additional metadata entry",
+                        metavar="TAG:VAL")
     # Set the command entry point
     parser.set_defaults(cmd=metadata)
