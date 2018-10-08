@@ -114,7 +114,7 @@ def run_measurement(args):
                 args.campaign = args.upload[0]
                 args.token = args.upload[1]
                 args.filename = args.output
-                args.metafilename = None
+                args.metadata = None
                 logger.info("try uploading data...")
                 upload.start_uploader(args)
             else:
