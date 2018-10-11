@@ -108,17 +108,6 @@ def run_measurement(args):
                 outputfile.write(json.dumps(result) + "\n")
                 logger.debug("wrote a result")
                 spider.outqueue.task_done()
-        if args.upload is not None:
-            if not args.output == '/dev/stdout':
-                # add agrs for uploader
-                args.campaign = args.upload[0]
-                args.token = args.upload[1]
-                args.filename = args.output
-                args.metafilename = None
-                logger.info("try uploading data...")
-                upload.start_uploader(args)
-            else:
-                logger.info("upload failed, --output must be set")
 
     except KeyboardInterrupt:
         logger.error("Received keyboard interrupt, dying now.")
@@ -147,16 +136,8 @@ def register_args(subparsers):
     parser.add_argument('--output', default='/dev/stdout', metavar='OUTPUTFILE',
                         help=("The file to output results data to. "
                               "Defaults to standard output."))
-    parser.add_argument('--autoname', action='store_true',
-                        help=("Gives output file a generated name. Overwrites --output"))
     parser.add_argument('--output-flows', action='store_true',
                         help="Include flow results in output.")
-    parser.add_argument('--upload', nargs=2, metavar=('CAMPAIGN', 'API-TOKEN'),
-                        help="Uploads generated data to PTO CAMPAIGN. requires --output to be set")
-    parser.add_argument('--add', nargs='+', metavar=('TAG:VAL'),
-                        help="Adds custom metadata entries")
-    parser.add_argument("--url", default='https://v3.pto.mami-project.eu/raw/',
-                        help="URL for PTO data upload. Default is PTO of mami-project")
 
     # Set the command entry point
     parser.set_defaults(cmd=run_measurement)

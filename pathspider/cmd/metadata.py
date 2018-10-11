@@ -42,16 +42,15 @@ def extract_metadata_for(filename, metadata_fn):
 
     return metafilename, metadata
 
-def create_metadata(filename, filetype, entry):
-    metafilename, metadata = extract_metadata_for(filename, FILETYPE_MAP[filetype])
-
-    # add custom entries to metadata
-    if entry is not None:
-        for element in entry:
-            keyword, value = element.split(":")
-            metadata[keyword] = value
-
-    write_metadata(metafilename, metadata)
+def add_extra_meta_data(meta_data, extra_data):
+    '''
+    add custom data to metadata from argparser
+    extra_data is list of strings. each element is tag:value
+    '''
+    for element in extra_data:
+        keyword, value = element.split(":")
+        meta_data[keyword] = value
+    return meta_data
 
 def write_metadata(metafilename, metadata):
     with open(metafilename, mode="w") as mfp:
@@ -63,7 +62,13 @@ def metadata(args):
     for filename in args.files:
         logger.info('processing %s...' % (filename,))
         sys.stdout.flush()
-        create_metadata(filename, args.filetype, args.metadata)
+
+        meta_filename, meta_data = extract_metadata_for(filename, FILETYPE_MAP[args.filetype])
+        
+        if args.extra is not None:
+            add_extra_meta_data(meta_data, args.extra)
+        
+        write_metadata(meta_filename, meta_data)
 
 def register_args(subparsers):
     parser = subparsers.add_parser(name='metadata',
@@ -71,7 +76,7 @@ def register_args(subparsers):
     parser.add_argument("files", nargs="*", help="input files", metavar="INPUTFILE")
     parser.add_argument("-t", "--filetype", help="filetype [ps-ndjson]",
                         metavar="FILETYPE", default="ps-ndjson")
-    parser.add_argument("--metadata", nargs='+', help="Additional metadata entry",
-                        metavar="ENTRY:VALUE")
+    parser.add_argument("--extra", nargs='+', help="Additional metadata tags",
+                        metavar="TAG:VAL")
     # Set the command entry point
     parser.set_defaults(cmd=metadata)
